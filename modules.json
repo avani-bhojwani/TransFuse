@@ -10,6 +10,11 @@
                         "git_sha": "76cc4938c1f6ea5c7d83fed1eeffc146787f9543",
                         "installed_by": ["modules"]
                     },
+                    "fastp": {
+                        "branch": "master",
+                        "git_sha": "37a98dd100d74d9188a272197663587de1331a0e",
+                        "installed_by": ["modules"]
+                    },
                     "fastqc": {
                         "branch": "master",
                         "git_sha": "c8e35eb2055c099720a75538d1b8adb3fb5a464c",
@@ -18,6 +23,31 @@
                     "multiqc": {
                         "branch": "master",
                         "git_sha": "f2d63bd5b68925f98f572eed70993d205cc694b7",
+                        "installed_by": ["modules"]
+                    },
+                    "salmon/index": {
+                        "branch": "master",
+                        "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",
+                        "installed_by": ["modules"]
+                    },
+                    "salmon/quant": {
+                        "branch": "master",
+                        "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",
+                        "installed_by": ["modules"]
+                    },
+                    "star/align": {
+                        "branch": "master",
+                        "git_sha": "57d75dbac06812c59798a48585032f6e50bb1914",
+                        "installed_by": ["modules"]
+                    },
+                    "star/genomegenerate": {
+                        "branch": "master",
+                        "git_sha": "603ecbd9f45300c9788f197d2a15a005685b4220",
+                        "installed_by": ["modules"]
+                    },
+                    "trinity": {
+                        "branch": "master",
+                        "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",
                         "installed_by": ["modules"]
                     }
                 }
