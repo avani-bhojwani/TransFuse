@@ -59,6 +59,7 @@ include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main
 include { TRINITY                     } from '../modules/nf-core/trinity/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
+include { BUSCO; BUSCO as BUSCO_COMBINED } from '../modules/nf-core/busco/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,8 +93,6 @@ workflow TRANSFUSE {
     //
     // MODULE: FASTP
     //
-    ch_adapter_fasta = params.adapter_fasta ? Channel.fromPath( params.adapter_fasta, checkIfExists: true ) : Channel.empty()
-
     FASTP (
         INPUT_CHECK.out.reads,
         params.adapter_fasta,
@@ -148,6 +147,29 @@ workflow TRANSFUSE {
         TRFORMAT.out.reformatted_fasta
     )
     ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+
+    //
+    // MODULE: BUSCO (for old reference transcriptome)
+    //
+    old_ref_ch = Channel.of(['old', params.fasta])
+    BUSCO (
+        old_ref_ch,
+        params.busco_lineage,
+        params.busco_lineages_path,
+        params.busco_config
+    )
+    ch_versions = ch_versions.mix(BUSCO.out.versions)
+
+    //
+    // MODULE: BUSCO combined (for new reference transcriptome)
+    //
+    new_ref_ch = TR2AACDS.out.non_redundant_fasta.map{ file -> ['new', file]}
+    BUSCO_COMBINED (
+        new_ref_ch,
+        params.busco_lineage,
+        params.busco_lineages_path,
+        params.busco_config
+    )
 
     //
     // MODULE: Salmon index

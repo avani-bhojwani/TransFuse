@@ -8,7 +8,7 @@ process TR2AACDS {
     path reformatted_fasta
 
     output:
-    path "*okay.fa"      , emit: non_redundant_fasta
+    path "non_redundant.okay.fa", emit: non_redundant_fasta
     path "versions.yml"  , emit: versions
 
     script:
