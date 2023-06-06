@@ -9,5 +9,20 @@ report_section_order:
     order: -1001
   "nf-core-transfuse-summary":
     order: -1002
-
+module_order:
+  - fastqc:
+      name: 'FastQC'
+      order: 1
+  - fastp:
+      name: 'Fastp'
+      order: 2
+  - star:
+      name: 'STAR'
+      order: 3
+  - busco:
+      name: 'BUSCO'
+      order: 4
+  - salmon:
+      name: 'Salmon'
+      order: 5
 export_plots: true
