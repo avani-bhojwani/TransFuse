@@ -11,7 +11,7 @@ process TRINITY {
     tuple val(meta), path(reads)
 
     output:
-    tuple val(meta), path("*.fa.gz")       , emit: transcript_fasta
+    tuple val(meta), path("*.fa.gz")       , emit: trinity_assembly
     path "versions.yml"                    , emit: versions
 
     when:

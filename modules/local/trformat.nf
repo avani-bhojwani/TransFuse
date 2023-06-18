@@ -6,7 +6,8 @@ process TRFORMAT {
 
     input:
     path old_fasta
-    tuple val(meta), path(new_fasta)
+    tuple val(meta), path(trinity_assembly)
+    tuple val(meta), path(spades_assembly)
 
     output:
     path "*.tr", emit: reformatted_fasta
@@ -14,9 +15,9 @@ process TRFORMAT {
 
     script:
     """
-    gunzip $new_fasta -c > new.fa
+    gunzip $trinity_assembly -c > trinity.fa
 
-    trformat.pl -pre $task.process -output all.tr -input $old_fasta new.fa 
+    trformat.pl -pre $task.process -output all.tr -input $old_fasta trinity.fa $spades_assembly
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

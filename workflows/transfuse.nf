@@ -148,7 +148,8 @@ workflow TRANSFUSE {
     //
     TRFORMAT (
         params.fasta,
-        TRINITY.out.transcript_fasta
+        TRINITY.out.trinity_assembly,
+        RNASPADES.out.spades_assembly
     )
 
     //
