@@ -178,6 +178,7 @@ workflow TRANSFUSE {
     RNAQUAST (
         TR2AACDS.out.non_redundant_fasta
     )
+    ch_versions = ch_versions.mix(RNAQUAST.out.versions)
 
     //
     // MODULE: Salmon index
