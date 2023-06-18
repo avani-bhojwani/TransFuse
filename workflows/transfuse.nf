@@ -41,6 +41,7 @@ include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 include { TRFORMAT                    } from '../modules/local/trformat'
 include { TR2AACDS                    } from '../modules/local/tr2aacds'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
+include { RNASPADES                   } from '../modules/local/rnaspades'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -132,6 +133,15 @@ workflow TRANSFUSE {
         STAR_ALIGN.out.fastq
     )
     ch_versions = ch_versions.mix(TRINITY.out.versions.first())
+
+    //
+    // MODULE: RNA-SPAdes
+    //
+    RNASPADES (
+        params.kmers,
+        STAR_ALIGN.out.fastq
+    )
+    ch_version = ch_versions.mix(RNASPADES.out.versions)
 
     //
     // MODULE TRFORMAT
