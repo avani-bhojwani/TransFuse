@@ -17,7 +17,13 @@ process TRFORMAT {
     """
     gunzip $trinity_assembly -c > trinity.fa
 
-    trformat.pl -pre $task.process -output all.tr -input $old_fasta trinity.fa $spades_assembly
+    # when mapping to reference transcriptome 
+    if [ !${params.skip_mapping} ]; then  
+        trformat.pl -pre $task.process -output all.tr -input $old_fasta trinity.fa $spades_assembly
+    #when skipping mapping to reference transcriptome
+    else
+        trformat.pl -pre $task.process -output all.tr -input trinity.fa $spades_assembly
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -103,54 +103,98 @@ workflow TRANSFUSE {
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
-    // 
-    // MODULE: STAR genomeGenerate
-    //
-    STAR_GENOMEGENERATE (
-        params.fasta,
-        params.gtf,
-        params.star_ignore_sjdbgtf
-    )
-    ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions)
+    //when mapping to reference transcriptome
+    if (!params.skip_mapping) {
+        // 
+        // MODULE: STAR genomeGenerate
+        //
+        STAR_GENOMEGENERATE (
+            params.fasta,
+            params.gtf,
+            params.star_ignore_sjdbgtf
+        )
+        ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions)
 
-    //
-    // MODULE: STAR align
-    //
-    STAR_ALIGN (
-        FASTP.out.reads,
-        STAR_GENOMEGENERATE.out.index,
-        params.gtf,
-        params.star_ignore_sjdbgtf,
-        params.seq_platform,
-        params.seq_center
-    )
-    ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
+        //
+        // MODULE: STAR align
+        //
+        STAR_ALIGN (
+            FASTP.out.reads,
+            STAR_GENOMEGENERATE.out.index,
+            params.gtf,
+            params.star_ignore_sjdbgtf,
+            params.seq_platform,
+            params.seq_center
+        )
+        ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
 
-    //
-    // MODULE: Trinity
-    //
-    TRINITY (
-        STAR_ALIGN.out.fastq
-    )
-    ch_versions = ch_versions.mix(TRINITY.out.versions.first())
+        //
+        // MODULE: Trinity
+        //
+        TRINITY (
+            STAR_ALIGN.out.fastq
+        )
+        ch_versions = ch_versions.mix(TRINITY.out.versions.first())
 
-    //
-    // MODULE: RNA-SPAdes
-    //
-    RNASPADES (
-        params.kmers,
-        STAR_ALIGN.out.fastq
-    )
-    ch_version = ch_versions.mix(RNASPADES.out.versions)
+        //
+        // MODULE: RNA-SPAdes
+        //
+        RNASPADES (
+            params.kmers,
+            STAR_ALIGN.out.fastq
+        )
+        ch_version = ch_versions.mix(RNASPADES.out.versions)
 
-    //
-    // MODULE TRFORMAT
-    //
-    TRFORMAT (
-        params.fasta,
-        TRINITY.out.trinity_assembly,
-        RNASPADES.out.spades_assembly
-    )
+        //
+        // MODULE TRFORMAT
+        //
+        TRFORMAT (
+            params.fasta,
+            TRINITY.out.trinity_assembly,
+            RNASPADES.out.spades_assembly
+        )
+
+        //
+        // MODULE: BUSCO (for old reference transcriptome)
+        //
+        old_ref_ch = Channel.of(['old', params.fasta])
+        BUSCO (
+            old_ref_ch,
+            params.busco_lineage,
+            params.busco_lineages_path,
+            params.busco_config
+        )
+        ch_versions = ch_versions.mix(BUSCO.out.versions)
+    }
+
+    //when skipping mapping to reference transcriptome
+    else {
+        //
+        // MODULE: Trinity
+        //
+        TRINITY (
+            FASTP.out.reads
+        )
+        ch_versions = ch_versions.mix(TRINITY.out.versions.first())
+
+        //
+        // MODULE: RNA-SPAdes
+        //
+        RNASPADES (
+            params.kmers,
+            FASTP.out.reads
+        )
+        ch_version = ch_versions.mix(RNASPADES.out.versions)
+
+        //
+        // MODULE TRFORMAT
+        //
+        TRFORMAT (
+            [],
+            TRINITY.out.trinity_assembly,
+            RNASPADES.out.spades_assembly
+        )
+    }
 
     //
     // MODULE TR2AACDS
@@ -161,19 +205,7 @@ workflow TRANSFUSE {
     ch_versions = ch_versions.mix(TR2AACDS.out.versions)
 
     //
-    // MODULE: BUSCO (for old reference transcriptome)
-    //
-    old_ref_ch = Channel.of(['old', params.fasta])
-    BUSCO (
-        old_ref_ch,
-        params.busco_lineage,
-        params.busco_lineages_path,
-        params.busco_config
-    )
-    ch_versions = ch_versions.mix(BUSCO.out.versions)
-
-    //
-    // MODULE: BUSCO combined (for new reference transcriptome)
+    // MODULE: BUSCO combined (for newly assembled reference transcriptome)
     //
     new_ref_ch = TR2AACDS.out.non_redundant_fasta.map{ file -> ['new', file]}
     BUSCO_COMBINED (
@@ -229,8 +261,12 @@ workflow TRANSFUSE {
 
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(FASTP.out.json.collect{it[1]}.ifEmpty([]))
-    ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
-    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
+
+    if (!params.skip_mapping) {
+        ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
+        ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
+    }
+
     ch_multiqc_files = ch_multiqc_files.mix(BUSCO_COMBINED.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(SALMON_QUANT.out.results.collect{it[1]}.ifEmpty([]))
 
