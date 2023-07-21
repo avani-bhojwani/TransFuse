@@ -58,6 +58,7 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoft
 include { FASTP                       } from '../modules/nf-core/fastp/main'
 include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
 include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main'
+include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
 include { TRINITY                     } from '../modules/nf-core/trinity/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
