@@ -5,7 +5,6 @@ process TRFORMAT {
     container "$launchDir/containers/evigene.sif"
 
     input:
-    path old_fasta
     tuple val(meta), path(trinity_assembly)
     tuple val(meta), path(spades_assembly)
 
@@ -15,13 +14,7 @@ process TRFORMAT {
 
     script:
     """
-    # when mapping to reference transcriptome 
-    if [ !${params.skip_mapping} ]; then  
-        trformat.pl -pre $task.process -output all.tr -input $old_fasta $trinity_assembly $spades_assembly
-    #when skipping mapping to reference transcriptome
-    else
-        trformat.pl -pre $task.process -output all.tr -input $trinity_assembly $spades_assembly
-    fi
+    trformat.pl -pre $task.process -output all.tr -input $trinity_assembly $spades_assembly
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
