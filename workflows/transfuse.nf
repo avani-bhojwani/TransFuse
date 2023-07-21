@@ -42,6 +42,7 @@ include { TRFORMAT                    } from '../modules/local/trformat'
 include { TR2AACDS                    } from '../modules/local/tr2aacds'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
 include { RNASPADES                   } from '../modules/local/rnaspades'
+include { ASSEMBLE                    } from '../subworkflows/local/assemble'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
