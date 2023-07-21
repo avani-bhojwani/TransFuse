@@ -105,6 +105,26 @@ workflow TRANSFUSE {
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
+    // Method 1 pools all reads together and assembles them
+    if (params.assemble_method == '1') {
+        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map {[ [id:'all_samples', single_end:false], it ] }
+
+        //
+        // MODULE: CAT_FASTQ
+        //
+        CAT_FASTQ (
+            method_1_pool_ch
+        )
+
+        //
+        // MODULE: ASSEMBLE
+        //
+        ASSEMBLE (
+            CAT_FASTQ.out.reads
+        )
+        ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+    }
+
     //when mapping to reference transcriptome
     if (!params.skip_mapping) {
         // 
