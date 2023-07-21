@@ -1,5 +1,6 @@
 //
 // Assemble clean reads using Trinity and rnaSPAdes
+//
 
 include { TRINITY                     } from '../modules/nf-core/trinity/main'
 include { RNASPADES                   } from '../modules/local/rnaspades'
