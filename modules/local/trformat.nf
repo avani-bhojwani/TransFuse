@@ -5,7 +5,7 @@ process TRFORMAT {
     container "$launchDir/containers/evigene.sif"
 
     input:
-    tuple val(meta), path(assemblies)
+    path(assemblies)
 
     output:
     path "*.tr", emit: reformatted_fasta
