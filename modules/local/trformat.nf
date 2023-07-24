@@ -5,8 +5,7 @@ process TRFORMAT {
     container "$launchDir/containers/evigene.sif"
 
     input:
-    tuple val(meta), path(trinity_assembly)
-    tuple val(meta), path(spades_assembly)
+    tuple val(meta), path(assemblies)
 
     output:
     path "*.tr", emit: reformatted_fasta
@@ -14,7 +13,7 @@ process TRFORMAT {
 
     script:
     """
-    trformat.pl -pre $task.process -output all.tr -input $trinity_assembly $spades_assembly
+    trformat.pl -pre $task.process -output all.tr -input $assemblies
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
