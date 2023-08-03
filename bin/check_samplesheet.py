@@ -35,6 +35,7 @@ class RowChecker:
         first_col="fastq_1",
         second_col="fastq_2",
         single_col="single_end",
+        first_sample_col="first",
         **kwargs,
     ):
         """
@@ -50,6 +51,8 @@ class RowChecker:
             single_col (str): The name of the new column that will be inserted and
                 records whether the sample contains single- or paired-end sequencing
                 reads (default "single_end").
+            first_sample_col (str): The name of the column that contains the first
+                sample (default "first").
 
         """
         super().__init__(**kwargs)
@@ -57,6 +60,8 @@ class RowChecker:
         self._first_col = first_col
         self._second_col = second_col
         self._single_col = single_col
+        self._first_sample_col = first_sample_col
+        self._first_samples_count = 0
         self._seen = set()
         self.modified = []
 
@@ -73,6 +78,7 @@ class RowChecker:
         self._validate_first(row)
         self._validate_second(row)
         self._validate_pair(row)
+        self._validate_first_sample(row)
         self._seen.add((row[self._sample_col], row[self._first_col]))
         self.modified.append(row)
 
@@ -112,6 +118,17 @@ class RowChecker:
                 f"The FASTQ file has an unrecognized extension: {filename}\n"
                 f"It should be one of: {', '.join(self.VALID_FORMATS)}"
             )
+
+    def _validate_first_sample(self, row):
+        """Assert that the 'first' field exists and is either '0' or '1'. Also ensure that only one sample is marked as 'first'."""
+        if str(row[self._first_sample_col]) not in ["0", "1"]:
+            raise AssertionError("The 'first' field must be either '0' or '1'.")
+
+        if str(row[self._first_sample_col]) == "1":
+            self._first_samples_count += 1
+
+        if self._first_samples_count > 1:
+            raise AssertionError("Only one sample can be marked as 'first'.")
 
     def validate_unique_samples(self):
         """
@@ -188,7 +205,7 @@ def check_samplesheet(file_in, file_out):
         https://raw.githubusercontent.com/nf-core/test-datasets/viralrecon/samplesheet/samplesheet_test_illumina_amplicon.csv
 
     """
-    required_columns = {"sample", "fastq_1", "fastq_2"}
+    required_columns = {"sample", "fastq_1", "fastq_2", "first"}
     # See https://docs.python.org/3.9/library/csv.html#id3 to read up on `newline=""`.
     with file_in.open(newline="") as in_handle:
         reader = csv.DictReader(in_handle, dialect=sniff_format(in_handle))
