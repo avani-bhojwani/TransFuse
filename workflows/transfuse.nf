@@ -38,11 +38,9 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 //
 include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
-include { TRFORMAT                    } from '../modules/local/trformat'
-include { TR2AACDS                    } from '../modules/local/tr2aacds'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
-include { RNASPADES                   } from '../modules/local/rnaspades'
-include { ASSEMBLE                    } from '../subworkflows/local/assemble'
+include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/local/assemble'
+include { EVIDENTIAL_GENE; EVIDENTIAL_GENE as FIRST_EVIDENTIAL_GENE } from '../subworkflows/local/evidential_gene'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -60,10 +58,9 @@ include { FASTP                       } from '../modules/nf-core/fastp/main'
 include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
 include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main'
 include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
-include { TRINITY                     } from '../modules/nf-core/trinity/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
-include { BUSCO; BUSCO as BUSCO_COMBINED } from '../modules/nf-core/busco/main'
+include { BUSCO                       } from '../modules/nf-core/busco/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,8 +103,8 @@ workflow TRANSFUSE {
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
     // Method 1 pools all reads together and assembles them
-    if (params.assemble_method == '1') {
-        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map {[ [id:'all_samples', single_end:false], it ] }
+    if (params.method == 1) {
+        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map {[ [id:'all_samples', single_end:false], it ] }      
 
         //
         // MODULE: CAT_FASTQ
@@ -120,128 +117,168 @@ workflow TRANSFUSE {
         // MODULE: ASSEMBLE
         //
         ASSEMBLE (
-            CAT_FASTQ.out.reads
+            CAT_FASTQ.out.reads,
+            params.kmers
         )
         ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
-    }
 
-    //when mapping to reference transcriptome
-    if (!params.skip_mapping) {
-        // 
-        // MODULE: STAR genomeGenerate
+        method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }
+
         //
-        STAR_GENOMEGENERATE (
-            params.fasta,
-            params.gtf,
-            params.star_ignore_sjdbgtf
+        // MODULE: Evidential Gene
+        //
+        EVIDENTIAL_GENE (
+            method_1_assemblies
         )
-        ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions)
+        ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+        
+        final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta
+        final_assembly_tuple = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ file -> ['final_assembly', file] }
 
+    } else if (params.method == 2) {
+        // Method 2 assembles each sample separately, them combines the assemblies
         //
-        // MODULE: STAR align
+        // MODULE: ASSEMBLE
         //
-        STAR_ALIGN (
+        ASSEMBLE (
             FASTP.out.reads,
-            STAR_GENOMEGENERATE.out.index,
-            params.gtf,
-            params.star_ignore_sjdbgtf,
-            params.seq_platform,
-            params.seq_center
+            params.kmers
         )
-        ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
+        ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+
+        method_2_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }
 
         //
-        // MODULE: Trinity
+        // MODULE: Evidential Gene
         //
-        TRINITY (
-            STAR_ALIGN.out.fastq
+        EVIDENTIAL_GENE (
+            method_2_assemblies
         )
-        ch_versions = ch_versions.mix(TRINITY.out.versions.first())
+        ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+
+        final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta
+        final_assembly_tuple = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ file -> ['final_assembly', file] }
+
+    } else if ( params.method == 3 || params.method == 4 || params.method == 5 ) {
+        // Method 3, 4, and 5 create a 'reference' transcriptome from one sample
+        first_sample_ch = FASTP.out.reads.filter{ it[0].first == true }
+        remaining_samples_ch = FASTP.out.reads.filter{ it[0].first == false }
 
         //
-        // MODULE: RNA-SPAdes
+        // MODULE: ASSEMBLE FIRST SAMPLE
         //
-        RNASPADES (
-            params.kmers,
-            STAR_ALIGN.out.fastq
+        ASSEMBLE_FIRST_SAMPLE (
+            first_sample_ch,
+            params.kmers
         )
-        ch_version = ch_versions.mix(RNASPADES.out.versions)
+        ch_versions = ch_versions.mix(ASSEMBLE_FIRST_SAMPLE.out.versions)
+
+        first_sample_assemblies = ASSEMBLE_FIRST_SAMPLE.out.trinity_assembly.mix(ASSEMBLE_FIRST_SAMPLE.out.spades_assembly).collect { meta, fasta -> fasta }
 
         //
-        // MODULE TRFORMAT
+        // MODULE: Evidential Gene for first sample assembly
         //
-        TRFORMAT (
-            params.fasta,
-            TRINITY.out.trinity_assembly,
-            RNASPADES.out.spades_assembly
+        FIRST_EVIDENTIAL_GENE (
+            first_sample_assemblies
         )
+        ch_versions = ch_versions.mix(FIRST_EVIDENTIAL_GENE.out.versions)
 
-        //
-        // MODULE: BUSCO (for old reference transcriptome)
-        //
-        old_ref_ch = Channel.of(['old', params.fasta])
-        BUSCO (
-            old_ref_ch,
-            params.busco_lineage,
-            params.busco_lineages_path,
-            params.busco_config
-        )
-        ch_versions = ch_versions.mix(BUSCO.out.versions)
-    }
+        first_sample_assembly_file = FIRST_EVIDENTIAL_GENE.out.non_redundant_fasta
+        first_sample_assembly_tuple = FIRST_EVIDENTIAL_GENE.out.non_redundant_fasta.map{ file -> ['first_sample_assembly', file] }
 
-    //when skipping mapping to reference transcriptome
-    else {
-        //
-        // MODULE: Trinity
-        //
-        TRINITY (
-            FASTP.out.reads
-        )
-        ch_versions = ch_versions.mix(TRINITY.out.versions.first())
+        if ( params.method == 3 || params.method == 4 ) {
+        // Method 3 and 4 align all remaining reads to the reference transcriptome
+            // 
+            // MODULE: STAR genomeGenerate
+            //
+            STAR_GENOMEGENERATE (
+                first_sample_assembly_file,
+                params.gtf,
+                params.star_ignore_sjdbgtf
+            )
+            ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions)
 
-        //
-        // MODULE: RNA-SPAdes
-        //
-        RNASPADES (
-            params.kmers,
-            FASTP.out.reads
-        )
-        ch_version = ch_versions.mix(RNASPADES.out.versions)
+            //
+            // MODULE: STAR align
+            //
+            STAR_ALIGN (
+                remaining_samples_ch,
+                STAR_GENOMEGENERATE.out.index,
+                params.gtf,
+                params.star_ignore_sjdbgtf,
+                params.seq_platform,
+                params.seq_center
+            )
+            ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
 
-        //
-        // MODULE TRFORMAT
-        //
-        TRFORMAT (
-            [],
-            TRINITY.out.trinity_assembly,
-            RNASPADES.out.spades_assembly
-        )
-    }
+            if ( params.method == 3 ) {
+                // Method 3 pools unmapped reads from remaining samples before assembly
+                method_3_pool_ch = STAR_ALIGN.out.fastq.collect { meta, fastq -> fastq }.map {[ [id:'all_samples', single_end:false], it ] }
 
+                //
+                // MODULE: ASSEMBLE
+                //
+                ASSEMBLE (
+                    method_3_pool_ch,
+                    params.kmers
+                )
+                ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+
+                method_3_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }
+
+                //
+                // MODULE: Evidential Gene
+                //
+                EVIDENTIAL_GENE (
+                    method_3_assemblies
+                )
+                ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+
+                final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta
+                final_assembly_tuple = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ file -> ['final_assembly', file] }
+
+            } else {
+                // Method 4 assembles unmapped reads from each sample separately
+                //
+                // MODULE: ASSEMBLE
+                //
+                ASSEMBLE (
+                    STAR_ALIGN.out.fastq,
+                    params.kmers
+                )
+                ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+
+                method_4_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }
+
+                //
+                // MODULE: Evidential Gene
+                //
+                EVIDENTIAL_GENE (
+                    method_4_assemblies
+                )
+                ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+
+                final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta
+                final_assembly_tuple = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ file -> ['final_assembly', file] }
+            }
+        } 
+    } 
     //
-    // MODULE TR2AACDS
+    // MODULE: BUSCO
     //
-    TR2AACDS (
-        TRFORMAT.out.reformatted_fasta
-    )
-    ch_versions = ch_versions.mix(TR2AACDS.out.versions)
-
-    //
-    // MODULE: BUSCO combined (for newly assembled reference transcriptome)
-    //
-    new_ref_ch = TR2AACDS.out.non_redundant_fasta.map{ file -> ['new', file]}
-    BUSCO_COMBINED (
-        new_ref_ch,
+    BUSCO (
+        final_assembly_tuple,
         params.busco_lineage,
         params.busco_lineages_path,
         params.busco_config
     )
+    ch_versions = ch_versions.mix(BUSCO.out.versions)
 
     //
     // MODULE: RNAQUAST
     //
     RNAQUAST (
-        TR2AACDS.out.non_redundant_fasta
+        final_assembly_file
     )
     ch_versions = ch_versions.mix(RNAQUAST.out.versions)
 
@@ -249,7 +286,7 @@ workflow TRANSFUSE {
     // MODULE: Salmon index
     //
     SALMON_INDEX (
-        TR2AACDS.out.non_redundant_fasta
+        final_assembly_file
     )
     ch_versions = ch_versions.mix(SALMON_INDEX.out.versions)
 
@@ -259,7 +296,7 @@ workflow TRANSFUSE {
     SALMON_QUANT (
         FASTP.out.reads,
         SALMON_INDEX.out.index,
-        TR2AACDS.out.non_redundant_fasta,
+        final_assembly_file,
         params.lib_type        
     )
     ch_versions = ch_versions.mix(SALMON_QUANT.out.versions)
@@ -284,12 +321,9 @@ workflow TRANSFUSE {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(FASTP.out.json.collect{it[1]}.ifEmpty([]))
 
-    if (!params.skip_mapping) {
-        ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
-        ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
-    }
+    //ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
 
-    ch_multiqc_files = ch_multiqc_files.mix(BUSCO_COMBINED.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(SALMON_QUANT.out.results.collect{it[1]}.ifEmpty([]))
 
     MULTIQC (
@@ -300,6 +334,7 @@ workflow TRANSFUSE {
     )
 
     multiqc_report = MULTIQC.out.report.toList()
+    
 }
 
 /*
