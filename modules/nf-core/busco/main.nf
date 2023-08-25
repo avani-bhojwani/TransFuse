@@ -1,5 +1,5 @@
 process BUSCO {
-    tag "$meta"
+    tag "$meta.id"
     label 'process_medium'
 
     conda "bioconda::busco=5.4.3"
@@ -25,7 +25,7 @@ process BUSCO {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta}-${lineage}"
+    def prefix = task.ext.prefix ?: "${meta.id}-${lineage}"
     def busco_config = config_file ? "--config $config_file" : ''
     def busco_lineage = lineage.equals('auto') ? '--auto-lineage' : "--lineage_dataset ${lineage}"
     def busco_lineage_dir = busco_lineages_path ? "--offline --download_path ${busco_lineages_path}" : ''
