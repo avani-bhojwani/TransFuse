@@ -1,22 +1,23 @@
 process TR2AACDS {
+    tag "$meta.id"
     label 'process_medium'
 
     conda "bioconda::perl=5.34.0 bioconda::exonerate=2.4.0 bioconda::cd-hit=4.8.1 bioconda::blast=2.12.0"
     container "$launchDir/containers/evigene.sif"
 
     input:
-    path reformatted_fasta
+    tuple val(meta), path(reformatted_fasta)
 
     output:
-    path "non_redundant.okay.fa", emit: non_redundant_fasta
-    path "versions.yml"  , emit: versions
+    tuple val(meta), path("*.okay.fa")  , emit: non_redundant_fasta
+    path "versions.yml"                 , emit: versions
 
     script:
     def mem_MB = (task.memory.toMega())
     """
-    tr2aacds.pl -NCPU $task.cpus -MAXMEM ${mem_MB} -log -cdna $reformatted_fasta
+    tr2aacds.pl -NCPU $task.cpus -MAXMEM ${mem_MB} -log -cdna ${reformatted_fasta}
 
-    cp okayset/*.okay.mrna non_redundant.okay.fa
+    cp okayset/*.okay.mrna ${meta.id}.okay.fa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
