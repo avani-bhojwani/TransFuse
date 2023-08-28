@@ -40,7 +40,7 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
 include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/local/assemble'
-include { EVIDENTIAL_GENE; EVIDENTIAL_GENE as FIRST_EVIDENTIAL_GENE; EVIDENTIAL_GENE as FINAL_EVIDENTIAL_GENE } from '../subworkflows/local/evidential_gene'
+include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -104,7 +104,7 @@ workflow TRANSFUSE {
 
     // Method 1 pools all reads together and assembles them
     if (params.method == 1) {
-        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'all_samples', single_end:false], it] }      
+        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
         // MODULE: CAT_FASTQ
@@ -122,18 +122,18 @@ workflow TRANSFUSE {
         )
         ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
 
-        method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_samples', single_end:false], it ] }
+        method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
         //
         // MODULE: Evidential Gene
         //
-        EVIDENTIAL_GENE (
+        TR2AACDS (
             method_1_assemblies
         )
-        ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
         
-        final_assembly_ch = EVIDENTIAL_GENE.out.non_redundant_fasta
-        final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
 
     } else if (params.method == 2) {
         // Method 2 assembles each sample separately, them combines the assemblies
@@ -147,18 +147,18 @@ workflow TRANSFUSE {
         ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
 
         method_2_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly)
-        method_2_assemblies = method_2_assemblies.collect { meta, fasta -> fasta }.map {[ [id:'all_samples', single_end:false], it ] }
+        method_2_assemblies = method_2_assemblies.collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
         //
         // MODULE: Evidential Gene
         //
-        EVIDENTIAL_GENE (
+        TR2AACDS (
             method_2_assemblies
         )
-        ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
 
-        final_assembly_ch = EVIDENTIAL_GENE.out.non_redundant_fasta
-        final_assembly_file = EVIDENTIAL_GENE.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
 
     } else if ( params.method == 3 ) {
         // Method 3 creates a 'reference' transcriptome from one sample
@@ -179,13 +179,13 @@ workflow TRANSFUSE {
         //
         // MODULE: Evidential Gene for first sample assembly
         //
-        FIRST_EVIDENTIAL_GENE (
+        FIRST_TR2AACDS (
             first_sample_assemblies
         )
-        ch_versions = ch_versions.mix(FIRST_EVIDENTIAL_GENE.out.versions)
+        ch_versions = ch_versions.mix(FIRST_TR2AACDS.out.versions)
 
-        first_sample_assembly_ch = FIRST_EVIDENTIAL_GENE.out.non_redundant_fasta
-        first_sample_assembly_file = FIRST_EVIDENTIAL_GENE.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        first_sample_assembly_ch = FIRST_TR2AACDS.out.non_redundant_fasta
+        first_sample_assembly_file = FIRST_TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
 
         // Align all remaining reads to the reference transcriptome
         // 
@@ -212,7 +212,7 @@ workflow TRANSFUSE {
         ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
 
         // Pool unmapped reads from remaining samples before assembly
-        method_3_pool_ch = STAR_ALIGN.out.fastq.collect { meta, fastq -> fastq }.map {[ [id:'remaining_samples', single_end:false], it ] }
+        method_3_pool_ch = STAR_ALIGN.out.fastq.collect { meta, fastq -> fastq }.map {[ [id:'pooled_unmapped_reads', single_end:false], it ] }
 
         //
         // MODULE: CAT_FASTQ for remaining samples
@@ -231,27 +231,17 @@ workflow TRANSFUSE {
         ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
 
         method_3_remaining_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'remaining_samples', single_end:false], it ] }
-
-        //
-        // MODULE: Evidential Gene for remaining samples
-        //
-        EVIDENTIAL_GENE (
-            method_3_remaining_assemblies
-        )
-        ch_versions = ch_versions.mix(EVIDENTIAL_GENE.out.versions)
-
-        // Combine the first sample assembly with the remaining sample assemblies
-        all_assemblies_ch = EVIDENTIAL_GENE.out.non_redundant_fasta.mix(first_sample_assembly_ch).collect { meta, fasta -> fasta }.map {[ [id:'all_samples', single_end:false], it ] }
-
+        
+        all_assemblies_ch = method_3_remaining_assemblies.mix(first_sample_assembly_ch).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
         //
         // MODULE: Evidential Gene for combining all assemblies
         //
-        FINAL_EVIDENTIAL_GENE (
+        TR2AACDS (
             all_assemblies_ch
         )
 
-        final_assembly_ch = FINAL_EVIDENTIAL_GENE.out.non_redundant_fasta
-        final_assembly_file = FINAL_EVIDENTIAL_GENE.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
     } 
     //
     // MODULE: BUSCO
