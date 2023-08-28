@@ -49,6 +49,10 @@ process TRINITY {
     --CPU $task.cpus \\
     $args
 
+    # modify the headers in the fasta file to include sample ID
+    sample_id=${meta.id}
+    sed -i "s/>TRINITY_/>TRINITY_\${sample_id}_/g" ${prefix}_trinity.Trinity.fasta
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         trinity: \$(echo \$(Trinity --version | head -n 1 2>&1) | sed 's/^Trinity version: Trinity-v//' ))

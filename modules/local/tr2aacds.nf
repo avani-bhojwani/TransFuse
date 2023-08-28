@@ -6,7 +6,7 @@ process TR2AACDS {
     container "$launchDir/containers/evigene.sif"
 
     input:
-    tuple val(meta), path(reformatted_fasta)
+    tuple val(meta), path(assemblies)
 
     output:
     tuple val(meta), path("*.okay.fa")  , emit: non_redundant_fasta
@@ -15,9 +15,15 @@ process TR2AACDS {
     script:
     def mem_MB = (task.memory.toMega())
     """
-    tr2aacds.pl -NCPU $task.cpus -MAXMEM ${mem_MB} -log -cdna ${reformatted_fasta}
+    cat ${assemblies} > ${meta.id}.fa
+    gzip ${meta.id}.fa
+
+    tr2aacds.pl -NCPU $task.cpus -MAXMEM ${mem_MB} -log -cdna ${meta.id}.fa.gz
 
     cp okayset/*.okay.mrna ${meta.id}.okay.fa
+
+    # replace headers with the old ones
+    sed -n -i "/^>/s/.*oid=\\([^;]*\\);/>\\1/p; t; p" ${meta.id}.okay.fa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

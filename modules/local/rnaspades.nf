@@ -18,6 +18,7 @@ process RNASPADES {
     script:
     """
     mem=\$( echo ${task.memory} | cut -f 1 -d " " )
+    sample_id=${meta.id}
 
     #run rnaSPAdes for each kmer, and stores the output in a folder 
     #the folder's name  includes the sample ID and the current k value
@@ -28,12 +29,13 @@ process RNASPADES {
     #modify the identifiers of the sequences in the transcripts.fasta files, 
     #adding a prefix that specifies the k-mer size used in the assembly
     for kmer in `echo $kmers | tr "," " "`;do
-        sed -i "s/>/>SPADES.k\${kmer}./g" ${meta.id}_spades_\${kmer}/transcripts.fasta
+        sed -i "s/>/>SPADES.\${sample_id}.k\${kmer}./g" ${meta.id}_spades_\${kmer}/transcripts.fasta
     done
 
     #concat all the fasta files from the individual assemblies into a single file
     cat ${meta.id}_spades_*/transcripts.fasta >${meta.id}.SPADES.fa
 
+    #can remove this step if we don't want to keep the individual kmer assemblies
     #copy each fasta file to a new file that specifies the k-mer size in its name.
     for kmer in `echo $kmers | tr "," " "`;do
         cp ${meta.id}_spades_\${kmer}/transcripts.fasta ${meta.id}.SPADES.k\${kmer}.fa
