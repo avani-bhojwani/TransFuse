@@ -40,7 +40,6 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
 include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/local/assemble'
-include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,6 +60,8 @@ include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
 include { BUSCO                       } from '../modules/nf-core/busco/main'
+include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
+include { CAT_FASTA                   } from '../modules/local/cat_fasta'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -232,16 +233,25 @@ workflow TRANSFUSE {
 
         method_3_remaining_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'remaining_samples', single_end:false], it ] }
         
-        all_assemblies_ch = method_3_remaining_assemblies.mix(first_sample_assembly_ch).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
         //
-        // MODULE: Evidential Gene for combining all assemblies
+        // MODULE: Evidential Gene for remaining samples
         //
         TR2AACDS (
+            method_3_remaining_assemblies
+        )
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+
+        all_assemblies_ch = TR2AACDS.out.non_redundant_fasta.mix(first_sample_assembly_ch).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+
+        //
+        // Concat all assemblies together
+        //
+        CAT_FASTA (
             all_assemblies_ch
         )
 
-        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        final_assembly_ch = CAT_FASTA.out.merged_assembly
+        final_assembly_file = CAT_FASTA.out.merged_assembly.map{ meta, fasta -> fasta }
     } 
     //
     // MODULE: BUSCO
