@@ -47,6 +47,11 @@ process BUSCO {
         echo "New AUGUSTUS_CONFIG_PATH=\${AUGUSTUS_CONFIG_PATH}"
     fi
 
+    # ensure the header names don't have '/' in them
+    for FASTA in tmp_input/*; do
+        sed -i 's/\\//_/g' "\$FASTA"
+    done
+
     # Ensure the input is uncompressed
     INPUT_SEQS=input_seqs
     mkdir "\$INPUT_SEQS"
