@@ -57,6 +57,7 @@ include { FASTP                       } from '../modules/nf-core/fastp/main'
 include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
 include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main'
 include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
+include { TRINITY                     } from '../modules/nf-core/trinity/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
 include { BUSCO                       } from '../modules/nf-core/busco/main'
@@ -103,8 +104,8 @@ workflow TRANSFUSE {
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
-    // Method 1 pools all reads together and assembles them
-    if (params.method == 1) {
+    // Method 1 and method 4 pool all reads together and then assemble them
+    if (params.method == 1 | params.method == 4) {
         method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
@@ -113,28 +114,45 @@ workflow TRANSFUSE {
         CAT_FASTQ (
             method_1_pool_ch
         )
+        ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
 
-        //
-        // MODULE: ASSEMBLE
-        //
-        ASSEMBLE (
-            CAT_FASTQ.out.reads,
-            params.kmers
-        )
-        ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+        // Method 4 only uses Trinity for assembly
+        if (params.method == 4) {
+            //
+            // MODULE: Trinity
+            //
+            TRINITY (
+                CAT_FASTQ.out.reads
+            )
+            ch_versions = ch_versions.mix(TRINITY.out.versions)
 
-        method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
-
-        //
-        // MODULE: Evidential Gene
-        //
-        TR2AACDS (
-            method_1_assemblies
-        )
-        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+            final_assembly_ch = TRINITY.out.trinity_assembly
+            final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
         
-        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        // Method 1 uses Trinity, rnaSPAdes, and evigene's tr2aacds for assembly and redundancy reduction
+        } else {
+            //
+            // MODULE: ASSEMBLE
+            //
+            ASSEMBLE (
+                CAT_FASTQ.out.reads,
+                params.kmers
+            )
+            ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+
+            method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+
+            //
+            // MODULE: Evidential Gene
+            //
+            TR2AACDS (
+                method_1_assemblies
+            )
+            ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+            
+            final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+            final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+        }
 
     } else if (params.method == 2) {
         // Method 2 assembles each sample separately, them combines the assemblies
