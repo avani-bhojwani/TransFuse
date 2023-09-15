@@ -23,7 +23,7 @@ process TR2AACDS {
     cp okayset/*.okay.mrna ${meta.id}.okay.fa
 
     # replace headers with the old ones
-    sed -n -i "/^>/s/.*oid=\\([^;]*\\);/>\\1/p; t; p" ${meta.id}.okay.fa
+    # sed -n -i "/^>/s/.*oid=\\([^;]*\\);/>\\1/p; t; p" ${meta.id}.okay.fa
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
