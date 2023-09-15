@@ -133,7 +133,7 @@ workflow TRANSFUSE {
             } else if (params.method == 5) {
                 // Method 5 does redundancy reduction on the trinity assembly
                 //
-                // MODULE: Evidential GeneF
+                // MODULE: Evidential Gene
                 //
                 TR2AACDS (
                     TRINITY.out.trinity_assembly
