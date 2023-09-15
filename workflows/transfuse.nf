@@ -104,8 +104,8 @@ workflow TRANSFUSE {
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
-    // Method 1 and method 4 pool all reads together and then assemble them
-    if (params.method == 1 | params.method == 4) {
+    // Method 1, method 4, and method 5 pool all reads together and then assemble them
+    if (params.method == 1 | params.method == 4 | params.method == 5) {
         method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
@@ -116,8 +116,8 @@ workflow TRANSFUSE {
         )
         ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
 
-        // Method 4 only uses Trinity for assembly
-        if (params.method == 4) {
+        // Method 4 and method 5 only use Trinity for assembly
+        if (params.method == 4 | params.method == 5) {
             //
             // MODULE: Trinity
             //
@@ -126,11 +126,26 @@ workflow TRANSFUSE {
             )
             ch_versions = ch_versions.mix(TRINITY.out.versions)
 
-            final_assembly_ch = TRINITY.out.trinity_assembly
-            final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
+            // Method 4 uses the trinity assembly as the final assembly
+            if (params.method == 4) {
+                final_assembly_ch = TRINITY.out.trinity_assembly
+                final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
+            } else if (params.method == 5) {
+                // Method 5 does redundancy reduction on the trinity assembly
+                //
+                // MODULE: Evidential GeneF
+                //
+                TR2AACDS (
+                    TRINITY.out.trinity_assembly
+                )
+                ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+
+                final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+                final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+            }
         
         // Method 1 uses Trinity, rnaSPAdes, and evigene's tr2aacds for assembly and redundancy reduction
-        } else {
+        } else if (params.method == 1) {
             //
             // MODULE: ASSEMBLE
             //
