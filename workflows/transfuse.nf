@@ -17,6 +17,12 @@ for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true
 // Check mandatory parameters
 if (params.input) { ch_input = file(params.input) } else { exit 1, 'Input samplesheet not specified!' }
 
+// Check rRNA databases for sortmerna
+if (params.remove_ribo_rna) {
+    ch_ribo_db = file(params.ribo_database_manifest, checkIfExists: true)
+    if (ch_ribo_db.isEmpty()) {exit 1, "File provided with --ribo_database_manifest is empty: ${ch_ribo_db.getName()}!"}
+}
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     CONFIG FILES
@@ -33,13 +39,18 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
     IMPORT LOCAL MODULES/SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+//
+// MODULE: Loaded from modules/local/
+//
+include { CAT_FASTA                   } from '../modules/local/cat_fasta'
+include { RNAQUAST                    } from '../modules/local/rnaquast'
+include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
 
 //
-// SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
+// SUBWORKFLOW: Loaded from subworkflows/local/
 //
-include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
-include { RNAQUAST                    } from '../modules/local/rnaquast'
 include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/local/assemble'
+include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,19 +61,18 @@ include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/lo
 //
 // MODULE: Installed directly from nf-core/modules
 //
-include { FASTQC                      } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
+include { BUSCO                       } from '../modules/nf-core/busco/main'
+include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions/main'
 include { FASTP                       } from '../modules/nf-core/fastp/main'
-include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
+include { FASTQC                      } from '../modules/nf-core/fastqc/main'
+include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
+include { SORTMERNA                   } from '../modules/nf-core/sortmerna/main'
 include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main'
-include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
-include { TRINITY                     } from '../modules/nf-core/trinity/main'
+include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
-include { BUSCO                       } from '../modules/nf-core/busco/main'
-include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
-include { CAT_FASTA                   } from '../modules/local/cat_fasta'
+include { TRINITY                     } from '../modules/nf-core/trinity/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,11 +112,28 @@ workflow TRANSFUSE {
         params.save_trimmed_fail,
         params.save_merged
     )
+    ch_filtered_reads = FASTP.out.reads
     ch_versions = ch_versions.mix(FASTP.out.versions)
+
+    //
+    // MODULE: SORTMERNA
+    //
+    if (params.remove_ribo_rna) {
+        ch_sortmerna_fastas = Channel.from(ch_ribo_db.readLines()).map { row -> file(row, checkIfExists: true) }.collect()
+
+        SORTMERNA (
+            ch_filtered_reads,
+            ch_sortmerna_fastas
+        )
+        .reads
+        .set { ch_filtered_reads }
+
+        ch_versions = ch_versions.mix(SORTMERNA.out.versions.first())
+    }
 
     // Method 1, method 2, and method 3 pool all reads together and then assemble them
     if (params.method == 1 | params.method == 2 | params.method == 3) {
-        method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
+        method_1_pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
         // MODULE: CAT_FASTQ
@@ -171,8 +198,8 @@ workflow TRANSFUSE {
 
     } else if ( params.method == 4 ) {
         // Method 4 creates a 'reference' transcriptome from one sample
-        first_sample_ch = FASTP.out.reads.filter{ it[0].first == true }
-        remaining_samples_ch = FASTP.out.reads.filter{ it[0].first == false }
+        first_sample_ch = ch_filtered_reads.filter{ it[0].first == true }
+        remaining_samples_ch = ch_filtered_reads.filter{ it[0].first == false }
 
         //
         // MODULE: ASSEMBLE FIRST SAMPLE
@@ -292,7 +319,7 @@ workflow TRANSFUSE {
     // MODULE: Salmon quant
     //
     SALMON_QUANT (
-        FASTP.out.reads,
+        ch_filtered_reads,
         SALMON_INDEX.out.index,
         final_assembly_file,
         params.lib_type        
@@ -318,6 +345,10 @@ workflow TRANSFUSE {
 
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(FASTP.out.json.collect{it[1]}.ifEmpty([]))
+
+    if (params.remove_ribo_rna) {
+        ch_multiqc_files = ch_multiqc_files.mix(SORTMERNA.out.log.collect{it[1]}.ifEmpty([]))
+    }
 
     if ( params.method == 4 ) {
         ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
