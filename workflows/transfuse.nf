@@ -104,8 +104,8 @@ workflow TRANSFUSE {
     )
     ch_versions = ch_versions.mix(FASTP.out.versions)
 
-    // Method 1, method 4, and method 5 pool all reads together and then assemble them
-    if (params.method == 1 | params.method == 4 | params.method == 5) {
+    // Method 1, method 2, and method 3 pool all reads together and then assemble them
+    if (params.method == 1 | params.method == 2 | params.method == 3) {
         method_1_pool_ch = FASTP.out.reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
@@ -116,8 +116,8 @@ workflow TRANSFUSE {
         )
         ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
 
-        // Method 4 and method 5 only use Trinity for assembly
-        if (params.method == 4 | params.method == 5) {
+        // Method 1 and method 2 only use Trinity for assembly
+        if (params.method == 1 | params.method == 2) {
             //
             // MODULE: Trinity
             //
@@ -126,12 +126,12 @@ workflow TRANSFUSE {
             )
             ch_versions = ch_versions.mix(TRINITY.out.versions)
 
-            // Method 4 uses the trinity assembly as the final assembly
-            if (params.method == 4) {
+            // Method 1 uses the trinity assembly as the final assembly
+            if (params.method == 1) {
                 final_assembly_ch = TRINITY.out.trinity_assembly
                 final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
-            } else if (params.method == 5) {
-                // Method 5 does redundancy reduction on the trinity assembly
+            } else if (params.method == 2) {
+                // Method 2 does redundancy reduction on the trinity assembly
                 //
                 // MODULE: Evidential Gene
                 //
@@ -144,8 +144,8 @@ workflow TRANSFUSE {
                 final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
             }
         
-        // Method 1 uses Trinity, rnaSPAdes, and evigene's tr2aacds for assembly and redundancy reduction
-        } else if (params.method == 1) {
+        // Method 3 uses Trinity, rnaSPAdes, and evigene's tr2aacds for assembly and redundancy reduction
+        } else if (params.method == 3) {
             //
             // MODULE: ASSEMBLE
             //
@@ -169,33 +169,8 @@ workflow TRANSFUSE {
             final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
         }
 
-    } else if (params.method == 2) {
-        // Method 2 assembles each sample separately, them combines the assemblies
-        //
-        // MODULE: ASSEMBLE
-        //
-        ASSEMBLE (
-            FASTP.out.reads,
-            params.kmers
-        )
-        ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
-
-        method_2_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly)
-        method_2_assemblies = method_2_assemblies.collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
-
-        //
-        // MODULE: Evidential Gene
-        //
-        TR2AACDS (
-            method_2_assemblies
-        )
-        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
-
-        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-
-    } else if ( params.method == 3 ) {
-        // Method 3 creates a 'reference' transcriptome from one sample
+    } else if ( params.method == 4 ) {
+        // Method 4 creates a 'reference' transcriptome from one sample
         first_sample_ch = FASTP.out.reads.filter{ it[0].first == true }
         remaining_samples_ch = FASTP.out.reads.filter{ it[0].first == false }
 
@@ -344,7 +319,7 @@ workflow TRANSFUSE {
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(FASTP.out.json.collect{it[1]}.ifEmpty([]))
 
-    if ( params.method == 3 ) {
+    if ( params.method == 4 ) {
         ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
     }
     ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
