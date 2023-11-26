@@ -44,12 +44,12 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 //
 include { CAT_FASTA                   } from '../modules/local/cat_fasta'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
-include { TR2AACDS; TR2AACDS as FIRST_TR2AACDS } from '../modules/local/tr2aacds'
+include { TR2AACDS                    } from '../modules/local/tr2aacds'
 
 //
 // SUBWORKFLOW: Loaded from subworkflows/local/
 //
-include { ASSEMBLE; ASSEMBLE as ASSEMBLE_FIRST_SAMPLE } from '../subworkflows/local/assemble'
+include { ASSEMBLE                    } from '../subworkflows/local/assemble'
 include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 
 /*
@@ -195,99 +195,8 @@ workflow TRANSFUSE {
             final_assembly_ch = TR2AACDS.out.non_redundant_fasta
             final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
         }
+    }
 
-    } else if ( params.method == 4 ) {
-        // Method 4 creates a 'reference' transcriptome from one sample
-        first_sample_ch = ch_filtered_reads.filter{ it[0].first == true }
-        remaining_samples_ch = ch_filtered_reads.filter{ it[0].first == false }
-
-        //
-        // MODULE: ASSEMBLE FIRST SAMPLE
-        //
-        ASSEMBLE_FIRST_SAMPLE (
-            first_sample_ch,
-            params.kmers
-        )
-        ch_versions = ch_versions.mix(ASSEMBLE_FIRST_SAMPLE.out.versions)
-
-        first_sample_assemblies = ASSEMBLE_FIRST_SAMPLE.out.trinity_assembly.mix(ASSEMBLE_FIRST_SAMPLE.out.spades_assembly)
-        first_sample_assemblies = first_sample_assemblies.collect { meta, fasta -> fasta }.map {[ [id:'first_sample', single_end:false], it ] }
-        //
-        // MODULE: Evidential Gene for first sample assembly
-        //
-        FIRST_TR2AACDS (
-            first_sample_assemblies
-        )
-        ch_versions = ch_versions.mix(FIRST_TR2AACDS.out.versions)
-
-        first_sample_assembly_ch = FIRST_TR2AACDS.out.non_redundant_fasta
-        first_sample_assembly_file = FIRST_TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-
-        // Align all remaining reads to the reference transcriptome
-        // 
-        // MODULE: STAR genomeGenerate
-        //
-        STAR_GENOMEGENERATE (
-            first_sample_assembly_file,
-            params.gtf,
-            params.star_ignore_sjdbgtf
-        )
-        ch_versions = ch_versions.mix(STAR_GENOMEGENERATE.out.versions)
-
-        //
-        // MODULE: STAR align
-        //
-        STAR_ALIGN (
-            remaining_samples_ch,
-            STAR_GENOMEGENERATE.out.index,
-            params.gtf,
-            params.star_ignore_sjdbgtf,
-            params.seq_platform,
-            params.seq_center
-        )
-        ch_versions = ch_versions.mix(STAR_ALIGN.out.versions)
-
-        // Pool unmapped reads from remaining samples before assembly
-        method_3_pool_ch = STAR_ALIGN.out.fastq.collect { meta, fastq -> fastq }.map {[ [id:'pooled_unmapped_reads', single_end:false], it ] }
-
-        //
-        // MODULE: CAT_FASTQ for remaining samples
-        //
-        CAT_FASTQ (
-            method_3_pool_ch
-        )
-
-        //
-        // MODULE: ASSEMBLE remaining samples
-        //
-        ASSEMBLE (
-            CAT_FASTQ.out.reads,
-            params.kmers
-        )
-        ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
-
-        method_3_remaining_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'remaining_samples', single_end:false], it ] }
-        
-        //
-        // MODULE: Evidential Gene for remaining samples
-        //
-        TR2AACDS (
-            method_3_remaining_assemblies
-        )
-        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
-
-        all_assemblies_ch = TR2AACDS.out.non_redundant_fasta.mix(first_sample_assembly_ch).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
-
-        //
-        // Concat all assemblies together
-        //
-        CAT_FASTA (
-            all_assemblies_ch
-        )
-
-        final_assembly_ch = CAT_FASTA.out.merged_assembly
-        final_assembly_file = CAT_FASTA.out.merged_assembly.map{ meta, fasta -> fasta }
-    } 
     //
     // MODULE: BUSCO
     //
