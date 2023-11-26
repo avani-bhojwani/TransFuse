@@ -50,16 +50,6 @@
                         "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",
                         "installed_by": ["modules"]
                     },
-                    "star/align": {
-                        "branch": "master",
-                        "git_sha": "57d75dbac06812c59798a48585032f6e50bb1914",
-                        "installed_by": ["modules"]
-                    },
-                    "star/genomegenerate": {
-                        "branch": "master",
-                        "git_sha": "603ecbd9f45300c9788f197d2a15a005685b4220",
-                        "installed_by": ["modules"]
-                    },
                     "trinity": {
                         "branch": "master",
                         "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",

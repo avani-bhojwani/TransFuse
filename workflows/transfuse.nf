@@ -68,8 +68,6 @@ include { FASTP                       } from '../modules/nf-core/fastp/main'
 include { FASTQC                      } from '../modules/nf-core/fastqc/main'
 include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
 include { SORTMERNA                   } from '../modules/nf-core/sortmerna/main'
-include { STAR_ALIGN                  } from '../modules/nf-core/star/align/main'
-include { STAR_GENOMEGENERATE         } from '../modules/nf-core/star/genomegenerate/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
 include { TRINITY                     } from '../modules/nf-core/trinity/main'
@@ -258,11 +256,6 @@ workflow TRANSFUSE {
     if (params.remove_ribo_rna) {
         ch_multiqc_files = ch_multiqc_files.mix(SORTMERNA.out.log.collect{it[1]}.ifEmpty([]))
     }
-
-    if ( params.method == 4 ) {
-        ch_multiqc_files = ch_multiqc_files.mix(STAR_ALIGN.out.log_final.collect{it[1]}.ifEmpty([]))
-    }
-    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
 
     ch_multiqc_files = ch_multiqc_files.mix(SALMON_QUANT.out.results.collect{it[1]}.ifEmpty([]))
 
