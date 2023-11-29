@@ -5,19 +5,6 @@
     "description": "A pipeline for combining data from different RNA-seq experiments",
     "type": "object",
     "definitions": {
-        "assembly_options": {
-            "title": "Assembly options",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "kmers": {
-                    "type": "string",
-                    "default": "25,35,55,75,85",
-                    "description": "kmers for rnaSPAdes."
-                }
-            }
-        },
         "input_output_options": {
             "title": "Input/output options",
             "type": "object",
@@ -55,41 +42,106 @@
                 }
             }
         },
-        "reference_genome_options": {
-            "title": "Reference genome options",
+        "fastp_options": {
+            "title": "FastP options",
             "type": "object",
-            "fa_icon": "fas fa-dna",
-            "description": "Reference genome related files and options required for the workflow.",
+            "description": "",
+            "default": "",
             "properties": {
-                "genome": {
+                "adapter_fasta": {
                     "type": "string",
-                    "description": "Name of iGenomes reference.",
-                    "fa_icon": "fas fa-book",
-                    "help_text": "If using a reference genome configured in the pipeline using iGenomes, use this parameter to give the ID for the reference. This is then used to build the full paths for all required reference genome files e.g. `--genome GRCh38`. \n\nSee the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details."
+                    "default": "[]",
+                    "description": "File in FASTA format containing possible adapters to remove. Accepted formats: *.{fasta,fna,fas,fa}",
+                    "format": "file-path"
                 },
-                "fasta": {
-                    "type": "string",
-                    "format": "file-path",
-                    "mimetype": "text/plain",
-                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
-                    "description": "Path to FASTA genome file.",
-                    "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have a BWA index available this will be generated for you automatically. Combine with `--save_reference` to save BWA index for future runs.",
-                    "fa_icon": "far fa-file-code"
-                },
-                "igenomes_base": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "description": "Directory / URL base for iGenomes references.",
-                    "default": "s3://ngi-igenomes/igenomes",
-                    "fa_icon": "fas fa-cloud-download-alt",
-                    "hidden": true
-                },
-                "igenomes_ignore": {
+                "save_trimmed_fail": {
                     "type": "boolean",
-                    "description": "Do not load the iGenomes reference config.",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
+                    "description": "Specify true to save files that failed to pass trimming thresholds ending in *.fail.fastq.gz"
+                },
+                "save_merged": {
+                    "type": "boolean",
+                    "description": "Specify true to save all merged reads to the a file ending in *.merged.fastq.gz"
+                }
+            }
+        },
+        "sortmerna_options": {
+            "title": "SortMeRNA options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "remove_ribo_rna": {
+                    "type": "boolean",
+                    "description": "Enable the removal of reads derived from ribosomal RNA using SortMeRNA."
+                },
+                "save_non_ribo_reads": {
+                    "type": "boolean",
+                    "description": "If this option is specified, intermediate FastQ files containing non-rRNA reads will be saved in the results directory."
+                },
+                "ribo_database_manifest": {
+                    "type": "string",
+                    "default": "${projectDir}/assets/rrna-db-defaults.txt",
+                    "description": "Text file containing paths to fasta files (one per line) that will be used to create the database for SortMeRNA."
+                }
+            }
+        },
+        "assembly_options": {
+            "title": "Assembly options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "method": {
+                    "type": "integer",
+                    "default": 2,
+                    "description": "Method to use for assembly. 1 = Trinity; 2 = Trinity, Evidential Gene; 3 = Trinity, rnaSPAdes, Evidential Gene"
+                },
+                "kmers": {
+                    "type": "string",
+                    "default": "25,35,55,75,85",
+                    "description": "kmers for rnaSPAdes."
+                },
+                "extra_trinity_args": {
+                    "type": "string",
+                    "description": "Extra arguments to pass to Trinity command in addition to defaults."
+                }
+            }
+        },
+        "busco_options": {
+            "title": "BUSCO options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "busco_lineage": {
+                    "type": "string",
+                    "default": "arthropoda_odb10.2019-11-20",
+                    "description": "The BUSCO lineage to use, or \"auto\" to automatically select lineage"
+                },
+                "busco_lineages_path": {
+                    "type": "string",
+                    "default": "[]",
+                    "description": "Path to local BUSCO lineages directory.",
+                    "format": "directory-path"
+                },
+                "busco_config": {
+                    "type": "string",
+                    "default": "[]",
+                    "description": "Path to BUSCO config file.",
+                    "format": "file-path"
+                }
+            }
+        },
+        "salmon_options": {
+            "title": "Salmon options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "lib_type": {
+                    "type": "string",
+                    "default": "A",
+                    "description": "Override library type inferred based on strandedness defined in meta object."
                 }
             }
         },
@@ -278,102 +330,26 @@
                     "help_text": "By default, parameters set as _hidden_ in the schema are not shown on the command line when a user runs with `--help`. Specifying this option will tell the pipeline to show all parameters."
                 }
             }
-        },
-        "fastp": {
-            "title": "FastP",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "adapter_fasta": {
-                    "type": "string",
-                    "default": "[]",
-                    "description": "File in FASTA format containing possible adapters to remove. Accepted formats: *.{fasta,fna,fas,fa}",
-                    "format": "file-path"
-                },
-                "save_trimmed_fail": {
-                    "type": "boolean",
-                    "description": "Specify true to save files that failed to pass trimming thresholds ending in *.fail.fastq.gz"
-                },
-                "save_merged": {
-                    "type": "boolean",
-                    "description": "Specify true to save all merged reads to the a file ending in *.merged.fastq.gz"
-                }
-            }
-        },
-        "star": {
-            "title": "STAR",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "gtf": {
-                    "type": "string",
-                    "default": "[]",
-                    "description": "GTF file of the reference genome. Not applicable for transcriptomics for organisms without a reference genome.",
-                    "format": "file-path"
-                },
-                "star_ignore_sjdbgtf": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Ignore the option to use a gtf file?"
-                },
-                "seq_platform": {
-                    "type": "boolean"
-                },
-                "seq_center": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "busco": {
-            "title": "BUSCO",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "busco_lineage": {
-                    "type": "string",
-                    "default": "arthropoda_odb10.2019-11-20",
-                    "description": "The BUSCO lineage to use, or \"auto\" to automatically select lineage"
-                },
-                "busco_lineages_path": {
-                    "type": "string",
-                    "default": "[]",
-                    "description": "Path to local BUSCO lineages directory.",
-                    "format": "directory-path"
-                },
-                "busco_config": {
-                    "type": "string",
-                    "default": "[]",
-                    "description": "Path to BUSCO config file.",
-                    "format": "file-path"
-                }
-            }
-        },
-        "salmon": {
-            "title": "Salmon",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "lib_type": {
-                    "type": "string",
-                    "default": "A",
-                    "description": "Override library type inferred based on strandedness defined in meta object."
-                }
-            }
         }
     },
     "allOf": [
         {
-            "$ref": "#/definitions/assembly_options"
-        },
-        {
             "$ref": "#/definitions/input_output_options"
         },
         {
-            "$ref": "#/definitions/reference_genome_options"
+            "$ref": "#/definitions/fastp_options"
+        },
+        {
+            "$ref": "#/definitions/sortmerna_options"
+        },
+        {
+            "$ref": "#/definitions/assembly_options"
+        },
+        {
+            "$ref": "#/definitions/busco_options"
+        },
+        {
+            "$ref": "#/definitions/salmon_options"
         },
         {
             "$ref": "#/definitions/institutional_config_options"
@@ -383,25 +359,6 @@
         },
         {
             "$ref": "#/definitions/generic_options"
-        },
-        {
-            "$ref": "#/definitions/fastp"
-        },
-        {
-            "$ref": "#/definitions/star"
-        },
-        {
-            "$ref": "#/definitions/busco"
-        },
-        {
-            "$ref": "#/definitions/salmon"
         }
-    ],
-    "properties": {
-        "method": {
-            "type": "integer",
-            "default": 1,
-            "description": "Method to use for assembly."
-        }
-    }
+    ]
 }
