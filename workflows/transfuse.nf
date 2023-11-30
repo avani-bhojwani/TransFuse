@@ -59,13 +59,12 @@ include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 */
 
 //
-// MODULE: Installed directly from nf-core/modules
+// MODULE: Installed directly from nf-core
 //
 include { BUSCO                       } from '../modules/nf-core/busco/main'
 include { CAT_FASTQ                   } from '../modules/nf-core/cat/fastq/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions/main'
-include { FASTP                       } from '../modules/nf-core/fastp/main'
-include { FASTQC                      } from '../modules/nf-core/fastqc/main'
+include { FASTQ_TRIM_FASTP_FASTQC     } from '../subworkflows/nf-core/fastq_trim_fastp_fastqc/main'
 include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
 include { SORTMERNA                   } from '../modules/nf-core/sortmerna/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
@@ -94,24 +93,18 @@ workflow TRANSFUSE {
     ch_versions = ch_versions.mix(INPUT_CHECK.out.versions)
 
     //
-    // MODULE: Run FastQC
+    // MODULE: FASTQ_TRIM_FASTP_FASTQC
     //
-    FASTQC (
-        INPUT_CHECK.out.reads
-    )
-    ch_versions = ch_versions.mix(FASTQC.out.versions)
-
-    //
-    // MODULE: FASTP
-    //
-    FASTP (
+    FASTQ_TRIM_FASTP_FASTQC (
         INPUT_CHECK.out.reads,
         params.adapter_fasta,
         params.save_trimmed_fail,
-        params.save_merged
+        params.save_merged,
+        params.skip_fastp,
+        params.skip_fastqc
     )
-    ch_filtered_reads = FASTP.out.reads
-    ch_versions = ch_versions.mix(FASTP.out.versions)
+    ch_filtered_reads = FASTQ_TRIM_FASTP_FASTQC.out.reads
+    ch_versions = ch_versions.mix(FASTQ_TRIM_FASTP_FASTQC.out.versions)
 
     //
     // MODULE: SORTMERNA
@@ -249,14 +242,17 @@ workflow TRANSFUSE {
     ch_multiqc_files = Channel.empty()
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml'))
-
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
-    ch_multiqc_files = ch_multiqc_files.mix(FASTP.out.json.collect{it[1]}.ifEmpty([]))
+    
+    // TODO: separate FastQC before and after trimming 
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_raw_zip.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(FASTQ_TRIM_FASTP_FASTQC.out.fastqc_trim_zip.collect{it[1]}.ifEmpty([]))
 
     if (params.remove_ribo_rna) {
         ch_multiqc_files = ch_multiqc_files.mix(SORTMERNA.out.log.collect{it[1]}.ifEmpty([]))
     }
 
+    // TODO: show BUSCO in multiqc
+    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_json.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(SALMON_QUANT.out.results.collect{it[1]}.ifEmpty([]))
 
     MULTIQC (
