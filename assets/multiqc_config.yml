@@ -11,7 +11,16 @@ report_section_order:
     order: -1002
  
 module_order:
-  - fastqc
+  - fastqc:
+      name: "FastQC (before)"
+      info: "This section of the report shows FastQC results before trimming."
+      path_filters:
+        - "*/*_raw_*.zip"
+  - fastqc:
+      name: "FastQC (after)"
+      info: "This section of the report shows FastQC results after trimming."
+      path_filters:
+        - "*/*_trim_*.zip"
   - busco
   - salmon
 
