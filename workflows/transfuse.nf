@@ -70,6 +70,8 @@ include { SORTMERNA                   } from '../modules/nf-core/sortmerna/main'
 include { SALMON_INDEX                } from '../modules/nf-core/salmon/index/main'
 include { SALMON_QUANT                } from '../modules/nf-core/salmon/quant/main'
 include { TRINITY                     } from '../modules/nf-core/trinity/main'
+include { TRINITY as TRINITY_NO_NORM  } from '../modules/nf-core/trinity/main'
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -123,7 +125,7 @@ workflow TRANSFUSE {
     }
 
     // Method 1, method 2, and method 3 pool all reads together and then assemble them
-    if (params.method == 1 | params.method == 2 | params.method == 3) {
+    if (params.method == 1 | params.method == 2 | params.method == 3 | params.method == 4) {
         method_1_pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
@@ -135,7 +137,7 @@ workflow TRANSFUSE {
         ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
 
         // Method 1 and method 2 only use Trinity for assembly
-        if (params.method == 1 | params.method == 2) {
+        if (params.method == 1 | params.method == 2 | params.method == 4) {
             //
             // MODULE: Trinity
             //
@@ -158,6 +160,28 @@ workflow TRANSFUSE {
                 )
                 ch_versions = ch_versions.mix(TR2AACDS.out.versions)
 
+                final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+                final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+            } else if (params.method == 4) {
+                // Method 4 does Trinity assembly without normalization
+                // And then Evidential Gene of both assemblies
+                //
+                // MODULE: Trinity (--no_normalize_reads)
+                //
+                TRINITY_NO_NORM (
+                    CAT_FASTQ.out.reads
+                )
+
+                method_4_assemblies = TRINITY_NO_NORM.out.trinity_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+
+                //
+                // MODULE: Evidential Gene
+                //
+                TR2AACDS (
+                    method_4_assemblies
+                )
+                ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+                
                 final_assembly_ch = TR2AACDS.out.non_redundant_fasta
                 final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
             }

@@ -50,7 +50,7 @@ process TRINITY {
     $args
 
     # modify the headers in the fasta file to include sample ID
-    sample_id=${meta.id}
+    sample_id=${prefix}
     sed -i "s/>TRINITY_/>TRINITY_\${sample_id}_/g" ${prefix}_trinity.Trinity.fasta
 
     cat <<-END_VERSIONS > versions.yml
