@@ -2,7 +2,7 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/transfuse/master/nextflow_schema.json",
     "title": "nf-core/transfuse pipeline parameters",
-    "description": "A pipeline for combining data from different RNA-seq experiments",
+    "description": "A pipeline for de novo transcriptome assembly",
     "type": "object",
     "definitions": {
         "input_output_options": {

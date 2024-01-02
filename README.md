@@ -12,7 +12,9 @@
 
 ## Introduction
 
-**nf-core/transfuse** is a bioinformatics pipeline that ...
+**nf-core/transfuse** is a bioinformatics pipeline for de novo transcriptome assembly of paired-end short reads. It takes a samplesheet and FASTQ files as input, perfoms quality control (QC), trimming, assembly, redundancy reduction, pseudoalignment, and quantification. It outputs a transcriptome assembly FASTA file, a transcript abundance TSV file, and a MultiQC report with assembly quality and read QC metrics.
+
+![nf-core/transfuse metro map](docs/images/transfuse_metro_map.drawio.svg)
 
 <!-- TODO nf-core:
    Complete this sentence with a 2-3 sentence summary of what types of data the pipeline ingests, a brief overview of the
@@ -24,8 +26,18 @@
      workflows use the "tube map" design for that. See https://nf-co.re/docs/contributing/design_guidelines#examples for examples.   -->
 <!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
 
-1. Read QC ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
-2. Present QC for raw reads ([`MultiQC`](http://multiqc.info/))
+1. Read QC of raw reads ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
+2. Adapter and quality trimming ([`fastp`](https://github.com/OpenGene/fastp))
+3. Remove rRNA or mitochondrial DNA (optional) ([`SortMeRNA`](https://hpc.nih.gov/apps/sortmeRNA.html))
+4. Read QC of trimmed reads ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
+5. Transcriptome assembly and redundancy reduction (choose a method):
+   1. Assembly with [`Trinity`](https://github.com/trinityrnaseq/trinityrnaseq/wiki)
+   2. Assembly with [`Trinity`](https://github.com/trinityrnaseq/trinityrnaseq/wiki), redundancy reduction with [`Evidential Gene tr2aacds`](http://arthropods.eugenes.org/EvidentialGene/) (default)
+   3. Assembly with [`Trinity`](https://github.com/trinityrnaseq/trinityrnaseq/wiki) and [`rnaSPAdes`](https://cab.spbu.ru/software/rnaspades/) (with multiple k-mer sizes), redundancy reduction with [`Evidential Gene tr2aacds`](http://arthropods.eugenes.org/EvidentialGene/)
+6. Assembly completeness QC ([`BUSCO`](https://busco.ezlab.org/))
+7. Other assembly quality metrics ([`rnaQUAST`](http://cab.spbu.ru/software/rnaquast))
+8. Pseudo-alignment and quantification ([`Salmon`](https://combine-lab.github.io/salmon/))
+9. Present HTML report for raw reads, trimmed reads, BUSCO, and Salmon ([`MultiQC`](http://multiqc.info/))
 
 ## Usage
 
@@ -36,19 +48,17 @@
 
 <!-- TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
      Explain what rows and columns represent. For instance (please edit as appropriate):
-
+-->
 First, prepare a samplesheet with your input data that looks as follows:
 
 `samplesheet.csv`:
 
 ```csv
 sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+CONTROL_REP1,SRX9161251_SRR12681133_1.fastq.gz,SRX9161251_SRR12681133_2.fastq.gz
 ```
 
-Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
-
--->
+Each row represents a pair of fastq files (paired end).
 
 Now, you can run the pipeline using:
 
