@@ -55,7 +55,9 @@ First, prepare a samplesheet with your input data that looks as follows:
 
 ```csv
 sample,fastq_1,fastq_2
-CONTROL_REP1,SRX9161251_SRR12681133_1.fastq.gz,SRX9161251_SRR12681133_2.fastq.gz
+CONTROL_REP1,SRX9161249_SRR12681131_1.fastq.gz,SRX9161255_SRR12681131_2.fastq.gz
+CONTROL_REP2,SRX9161250_SRR12681132_1.fastq.gz,SRX9161251_SRR12681132_2.fastq.gz
+CONTROL_REP3,SRX9161251_SRR12681133_1.fastq.gz,SRX9161251_SRR12681133_2.fastq.gz
 ```
 
 Each row represents a pair of fastq files (paired end).
