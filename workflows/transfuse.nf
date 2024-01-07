@@ -221,6 +221,7 @@ workflow TRANSFUSE {
     //
     BUSCO (
         final_assembly_ch,
+        "transcriptome",
         params.busco_lineage,
         params.busco_lineages_path,
         params.busco_config
@@ -278,8 +279,7 @@ workflow TRANSFUSE {
         ch_multiqc_files = ch_multiqc_files.mix(SORTMERNA.out.log.collect{it[1]}.ifEmpty([]))
     }
 
-    // TODO: show BUSCO in multiqc
-    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_json.collect{it[1]}.ifEmpty([]))
+    ch_multiqc_files = ch_multiqc_files.mix(BUSCO.out.short_summaries_txt.collect{it[1]}.ifEmpty([]))
     ch_multiqc_files = ch_multiqc_files.mix(SALMON_QUANT.out.results.collect{it[1]}.ifEmpty([]))
 
     MULTIQC (
