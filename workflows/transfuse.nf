@@ -124,34 +124,37 @@ workflow TRANSFUSE {
         ch_versions = ch_versions.mix(SORTMERNA.out.versions.first())
     }
 
-    // Method 1, method 2, and method 3 pool all reads together and then assemble them
+    // All methods used pooled reads
     if (params.method == 1 | params.method == 2 | params.method == 3 | params.method == 4) {
-        method_1_pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
+        pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
         //
         // MODULE: CAT_FASTQ
         //
         CAT_FASTQ (
-            method_1_pool_ch
+            pool_ch
         )
         ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
 
-        // Method 1 and method 2 only use Trinity for assembly
-        if (params.method == 1 | params.method == 2 | params.method == 4) {
+        // Method 1, 2 and 3 only use Trinity for assembly
+        // Method 4 uses Trinity and rnaSPAdes for assembly
+        // First Trinity assembly is created using normalized reads
+        if (params.method == 1 | params.method == 2 | params.method == 3) {
             //
-            // MODULE: Trinity
+            // MODULE: Trinity 
             //
             TRINITY (
                 CAT_FASTQ.out.reads
             )
             ch_versions = ch_versions.mix(TRINITY.out.versions)
 
-            // Method 1 uses the trinity assembly as the final assembly
+            // Method 1 uses the trinity assembly as the final assembly 
             if (params.method == 1) {
                 final_assembly_ch = TRINITY.out.trinity_assembly
                 final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
             } else if (params.method == 2) {
                 // Method 2 does redundancy reduction on the trinity assembly
+                // to create the final assembly
                 //
                 // MODULE: Evidential Gene
                 //
@@ -162,9 +165,9 @@ workflow TRANSFUSE {
 
                 final_assembly_ch = TR2AACDS.out.non_redundant_fasta
                 final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-            } else if (params.method == 4) {
-                // Method 4 does Trinity assembly without normalization
-                // And then Evidential Gene of both assemblies
+            } else if (params.method == 3) {
+                // Method 3 creates second Trinity assembly without normalization
+                // And then uses Evidential Gene tr2aacds to combine both assemblies
                 //
                 // MODULE: Trinity (--no_normalize_reads)
                 //
@@ -172,13 +175,13 @@ workflow TRANSFUSE {
                     CAT_FASTQ.out.reads
                 )
 
-                method_4_assemblies = TRINITY_NO_NORM.out.trinity_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+                method_3_assemblies = TRINITY_NO_NORM.out.trinity_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
                 //
                 // MODULE: Evidential Gene
                 //
                 TR2AACDS (
-                    method_4_assemblies
+                    method_3_assemblies
                 )
                 ch_versions = ch_versions.mix(TR2AACDS.out.versions)
                 
@@ -186,8 +189,9 @@ workflow TRANSFUSE {
                 final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
             }
         
-        // Method 3 uses Trinity, rnaSPAdes, and evigene's tr2aacds for assembly and redundancy reduction
-        } else if (params.method == 3) {
+        // Method 4 uses Trinity and rnaSPAdes for assembly 
+        // and redundancy reduction Evidenetial Gene tr2aacds
+        } else if (params.method == 4) {
             //
             // MODULE: ASSEMBLE
             //
@@ -197,13 +201,13 @@ workflow TRANSFUSE {
             )
             ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
 
-            method_1_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+            method_4_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
             //
             // MODULE: Evidential Gene
             //
             TR2AACDS (
-                method_1_assemblies
+                method_4_assemblies
             )
             ch_versions = ch_versions.mix(TR2AACDS.out.versions)
             

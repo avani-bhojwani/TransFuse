@@ -94,7 +94,7 @@
                 "method": {
                     "type": "integer",
                     "default": 2,
-                    "description": "Method to use for assembly. 1 = Trinity; 2 = Trinity, Evidential Gene; 3 = Trinity, rnaSPAdes, Evidential Gene"
+                    "description": "Method to use for assembly. 1 = Trinity (normalized reads); 2 = Trinity (normalized reads), Evidential Gene; 3 = Trinity (normalized, unnormalized reads), Evidential Gene; 4 = Trinity (normalized reads), rnaSPAdes, Evidential Gene"
                 },
                 "kmers": {
                     "type": "string",
