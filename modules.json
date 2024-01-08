@@ -47,7 +47,7 @@
                     },
                     "sortmerna": {
                         "branch": "master",
-                        "git_sha": "911696ea0b62df80e900ef244d7867d177971f73",
+                        "git_sha": "ce558e30784469b88a16923ca96d81899d240b42",
                         "installed_by": ["modules"]
                     },
                     "trinity": {
