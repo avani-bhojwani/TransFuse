@@ -43,6 +43,7 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 // MODULE: Loaded from modules/local/
 //
 include { CAT_FASTA                   } from '../modules/local/cat_fasta'
+include { MERGE_TPM                   } from '../modules/local/merge_tpm'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
 include { TR2AACDS                    } from '../modules/local/tr2aacds'
 
@@ -254,6 +255,14 @@ workflow TRANSFUSE {
         params.lib_type        
     )
     ch_versions = ch_versions.mix(SALMON_QUANT.out.versions)
+
+    //
+    // MODULE: MERGE_TPM
+    //
+    MERGE_TPM (
+        SALMON_QUANT.out.results.collect{it[1]}
+    )
+    ch_versions = ch_versions.mix(MERGE_TPM.out.versions)
 
     CUSTOM_DUMPSOFTWAREVERSIONS (
         ch_versions.unique().collectFile(name: 'collated_versions.yml')
