@@ -12,7 +12,7 @@ process RNASPADES {
     tuple val(meta), path(reads)
 
     output:
-    tuple val(meta), path("*.SPADES.fa")       , emit: spades_assembly
+    tuple val(meta), path("*transcripts.fasta")       , emit: spades_assembly
     path "versions.yml"                    , emit: versions
 
     script:
@@ -20,29 +20,9 @@ process RNASPADES {
     mem=\$( echo ${task.memory} | cut -f 1 -d " " )
     sample_id=${meta.id}
 
-    #run rnaSPAdes for each kmer, and stores the output in a folder 
-    #the folder's name  includes the sample ID and the current k value
-    for kmer in `echo $kmers | tr "," " "`;do
-        rnaspades.py -1 ${reads[0]} -2 ${reads[1]} -o ${meta.id}_spades_\${kmer} -t ${task.cpus} -k \${kmer} -m \${mem}
-    done
+    rnaspades.py -1 ${reads[0]} -2 ${reads[1]} -o ${meta.id}_spades -t ${task.cpus} -m \${mem}
 
-    #modify the identifiers of the sequences in the transcripts.fasta files, 
-    #adding a prefix that specifies the k-mer size used in the assembly
-    for kmer in `echo $kmers | tr "," " "`;do
-        sed -i "s/>/>SPADES.\${sample_id}.k\${kmer}./g" ${meta.id}_spades_\${kmer}/transcripts.fasta
-    done
-
-    #concat all the fasta files from the individual assemblies into a single file
-    cat ${meta.id}_spades_*/transcripts.fasta >${meta.id}.SPADES.fa
-
-    #can remove this step if we don't want to keep the individual kmer assemblies
-    #copy each fasta file to a new file that specifies the k-mer size in its name.
-    for kmer in `echo $kmers | tr "," " "`;do
-        cp ${meta.id}_spades_\${kmer}/transcripts.fasta ${meta.id}.SPADES.k\${kmer}.fa
-    done
-
-    #remove the individual assembly folders
-    rm -r ${meta.id}_spades_*
+    cp ${meta.id}_spades/transcripts.fasta ${meta.id}_transcripts.fasta
     
     v=\$( rnaspades.py -v 2>&1 | awk '{print \$4}' | tr -d "v" )
     cat <<-END_VERSIONS > versions.yml

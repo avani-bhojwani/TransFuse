@@ -45,12 +45,12 @@ ch_multiqc_custom_methods_description = params.multiqc_methods_description ? fil
 include { CAT_FASTA                   } from '../modules/local/cat_fasta'
 include { MERGE_TPM                   } from '../modules/local/merge_tpm'
 include { RNAQUAST                    } from '../modules/local/rnaquast'
+include { RNASPADES                   } from '../modules/local/rnaspades'
 include { TR2AACDS                    } from '../modules/local/tr2aacds'
 
 //
 // SUBWORKFLOW: Loaded from subworkflows/local/
 //
-include { ASSEMBLE                    } from '../subworkflows/local/assemble'
 include { INPUT_CHECK                 } from '../subworkflows/local/input_check'
 
 /*
@@ -126,95 +126,91 @@ workflow TRANSFUSE {
     }
 
     // All methods used pooled reads
-    if (params.method == 1 | params.method == 2 | params.method == 3 | params.method == 4) {
-        pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
+    pool_ch = ch_filtered_reads.collect { meta, fastq -> fastq }.map { [[id:'pooled_reads', single_end:false], it] }      
 
+    //
+    // MODULE: CAT_FASTQ
+    //
+    CAT_FASTQ (
+        pool_ch
+    )
+    ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
+
+    // Method 1, 2 and 3 only use Trinity for assembly
+    // Method 4 uses Trinity and rnaSPAdes for assembly
+    // First Trinity assembly is created using normalized reads
+    //
+    // MODULE: Trinity 
+    //
+    TRINITY (
+        CAT_FASTQ.out.reads
+    )
+    ch_versions = ch_versions.mix(TRINITY.out.versions)
+
+    // Method 1 uses the trinity assembly as the final assembly 
+    if (params.method == 1) {
+        final_assembly_ch = TRINITY.out.trinity_assembly
+        final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
+    } else if (params.method == 2) {
+        // Method 2 does redundancy reduction on the trinity assembly
+        // to create the final assembly
         //
-        // MODULE: CAT_FASTQ
+        // MODULE: Evidential Gene
         //
-        CAT_FASTQ (
-            pool_ch
+        TR2AACDS (
+            TRINITY.out.trinity_assembly
         )
-        ch_versions = ch_versions.mix(CAT_FASTQ.out.versions)
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
 
-        // Method 1, 2 and 3 only use Trinity for assembly
-        // Method 4 uses Trinity and rnaSPAdes for assembly
-        // First Trinity assembly is created using normalized reads
-        if (params.method == 1 | params.method == 2 | params.method == 3) {
-            //
-            // MODULE: Trinity 
-            //
-            TRINITY (
-                CAT_FASTQ.out.reads
-            )
-            ch_versions = ch_versions.mix(TRINITY.out.versions)
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+    } else if (params.method == 3) {
+        // Method 3 creates second Trinity assembly without normalization
+        // And then uses Evidential Gene tr2aacds to combine both assemblies
+        //
+        // MODULE: Trinity (--no_normalize_reads)
+        //
+        TRINITY_NO_NORM (
+            CAT_FASTQ.out.reads
+        )
 
-            // Method 1 uses the trinity assembly as the final assembly 
-            if (params.method == 1) {
-                final_assembly_ch = TRINITY.out.trinity_assembly
-                final_assembly_file = TRINITY.out.trinity_assembly.map{ meta, fasta -> fasta }
-            } else if (params.method == 2) {
-                // Method 2 does redundancy reduction on the trinity assembly
-                // to create the final assembly
-                //
-                // MODULE: Evidential Gene
-                //
-                TR2AACDS (
-                    TRINITY.out.trinity_assembly
-                )
-                ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+        method_3_assemblies = TRINITY_NO_NORM.out.trinity_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
-                final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-                final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-            } else if (params.method == 3) {
-                // Method 3 creates second Trinity assembly without normalization
-                // And then uses Evidential Gene tr2aacds to combine both assemblies
-                //
-                // MODULE: Trinity (--no_normalize_reads)
-                //
-                TRINITY_NO_NORM (
-                    CAT_FASTQ.out.reads
-                )
-
-                method_3_assemblies = TRINITY_NO_NORM.out.trinity_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
-
-                //
-                // MODULE: Evidential Gene
-                //
-                TR2AACDS (
-                    method_3_assemblies
-                )
-                ch_versions = ch_versions.mix(TR2AACDS.out.versions)
-                
-                final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-                final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-            }
+        //
+        // MODULE: Evidential Gene
+        //
+        TR2AACDS (
+            method_3_assemblies
+        )
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
         
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
+
+    } else if (params.method == 4) {
         // Method 4 uses Trinity and rnaSPAdes for assembly 
         // and redundancy reduction Evidenetial Gene tr2aacds
-        } else if (params.method == 4) {
-            //
-            // MODULE: ASSEMBLE
-            //
-            ASSEMBLE (
-                CAT_FASTQ.out.reads,
-                params.kmers
-            )
-            ch_versions = ch_versions.mix(ASSEMBLE.out.versions)
+        //
+        // MODULE: RNASPADES
+        //
+        RNASPADES (
+            params.kmers,
+            CAT_FASTQ.out.reads
+        )
+        ch_versions = ch_versions.mix(RNASPADES.out.versions)
 
-            method_4_assemblies = ASSEMBLE.out.trinity_assembly.mix(ASSEMBLE.out.spades_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
+        method_4_assemblies = RNASPADES.out.spades_assembly.mix(TRINITY.out.trinity_assembly).collect { meta, fasta -> fasta }.map {[ [id:'all_assembled', single_end:false], it ] }
 
-            //
-            // MODULE: Evidential Gene
-            //
-            TR2AACDS (
-                method_4_assemblies
-            )
-            ch_versions = ch_versions.mix(TR2AACDS.out.versions)
-            
-            final_assembly_ch = TR2AACDS.out.non_redundant_fasta
-            final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
-        }
+        //
+        // MODULE: Evidential Gene
+        //
+        TR2AACDS (
+            method_4_assemblies
+        )
+        ch_versions = ch_versions.mix(TR2AACDS.out.versions)
+        
+        final_assembly_ch = TR2AACDS.out.non_redundant_fasta
+        final_assembly_file = TR2AACDS.out.non_redundant_fasta.map{ meta, fasta -> fasta }
     }
 
     //
