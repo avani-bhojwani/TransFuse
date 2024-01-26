@@ -2,8 +2,7 @@ process TR2AACDS {
     tag "$meta.id"
     label 'process_medium'
 
-    conda "bioconda::perl=5.34.0 bioconda::exonerate=2.4.0 bioconda::cd-hit=4.8.1 bioconda::blast=2.12.0"
-    container "$launchDir/containers/evigene.sif"
+    container 'biocontainers/evidential-gene:23jul15_cv1'
 
     input:
     tuple val(meta), path(assemblies)
