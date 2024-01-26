@@ -8,7 +8,6 @@ process RNASPADES {
         'biocontainers/spades:3.15.5--h95f258a_1' }"
 
     input:
-    val kmers
     tuple val(meta), path(reads)
 
     output:

@@ -42,8 +42,8 @@
                 }
             }
         },
-        "fastp_options": {
-            "title": "FastP options",
+        "fastqc_fastp_options": {
+            "title": "FastQC/FastP options",
             "type": "object",
             "description": "",
             "default": "",
@@ -61,8 +61,25 @@
                 "save_merged": {
                     "type": "boolean",
                     "description": "Specify true to save all merged reads to the a file ending in *.merged.fastq.gz"
+                },
+                "skip_fastp": {
+                    "type": "boolean",
+                    "description": "Skip the fastp process if true"
+                },
+                "skip_fastqc": {
+                    "type": "boolean",
+                    "description": "Skip FastQC processes if true"
+                },
+                "extra_fastp_args": {
+                    "type": "string",
+                    "description": "Extra arguements for fastp. For example, '--trim_front1 15 --trim_front2 15 --trim_tail1 5 --trim_tail2 5'"
+                },
+                "QC_only": {
+                    "type": "boolean",
+                    "description": "Only run FastQC and fastp steps. Assembly and subsequent steps won't be performed."
                 }
-            }
+            },
+            "fa_icon": "fas fa-cut"
         },
         "sortmerna_options": {
             "title": "SortMeRNA options",
@@ -83,7 +100,8 @@
                     "default": "${projectDir}/assets/rrna-db-defaults.txt",
                     "description": "Text file containing paths to fasta files (one per line) that will be used to create the database for SortMeRNA."
                 }
-            }
+            },
+            "fa_icon": "fas fa-filter"
         },
         "assembly_options": {
             "title": "Assembly options",
@@ -94,18 +112,14 @@
                 "method": {
                     "type": "integer",
                     "default": 2,
-                    "description": "Method to use for assembly. 1 = Trinity (normalized reads); 2 = Trinity (normalized reads), Evidential Gene; 3 = Trinity (normalized, unnormalized reads), Evidential Gene; 4 = Trinity (normalized reads), rnaSPAdes, Evidential Gene"
-                },
-                "kmers": {
-                    "type": "string",
-                    "default": "25,35,55,75,85",
-                    "description": "kmers for rnaSPAdes."
+                    "description": "Method to use for assembly. See README for details."
                 },
                 "extra_trinity_args": {
                     "type": "string",
                     "description": "Extra arguments to pass to Trinity command in addition to defaults."
                 }
-            }
+            },
+            "fa_icon": "fas fa-puzzle-piece"
         },
         "busco_options": {
             "title": "BUSCO options",
@@ -130,7 +144,8 @@
                     "description": "Path to BUSCO config file.",
                     "format": "file-path"
                 }
-            }
+            },
+            "fa_icon": "fas fa-circle-notch"
         },
         "salmon_options": {
             "title": "Salmon options",
@@ -143,7 +158,8 @@
                     "default": "A",
                     "description": "Override library type inferred based on strandedness defined in meta object."
                 }
-            }
+            },
+            "fa_icon": "fas fa-fish"
         },
         "institutional_config_options": {
             "title": "Institutional config options",
@@ -337,7 +353,7 @@
             "$ref": "#/definitions/input_output_options"
         },
         {
-            "$ref": "#/definitions/fastp_options"
+            "$ref": "#/definitions/fastqc_fastp_options"
         },
         {
             "$ref": "#/definitions/sortmerna_options"
