@@ -12,17 +12,21 @@ process RNASPADES {
     tuple val(meta), path(reads)
 
     output:
-    tuple val(meta), path("*transcripts.fasta")       , emit: spades_assembly
-    path "versions.yml"                    , emit: versions
+    tuple val(meta), path("transcripts.fasta")              , emit: transcripts
+    tuple val(meta), path("soft_filtered_transcripts.fasta") , emit: soft_filtered_transcripts
+    tuple val(meta), path("hard_filtered_transcripts.fasta") , emit: hard_filtered_transcripts
+    path "versions.yml"                                       , emit: versions
 
     script:
     """
     mem=\$( echo ${task.memory} | cut -f 1 -d " " )
     sample_id=${meta.id}
 
-    rnaspades.py -1 ${reads[0]} -2 ${reads[1]} -o ${meta.id}_spades -t ${task.cpus} -m \${mem}
+    rnaspades.py -1 ${reads[0]} -2 ${reads[1]} -o ./ -t ${task.cpus} -m \${mem}
 
-    cp ${meta.id}_spades/transcripts.fasta ${meta.id}_transcripts.fasta
+    # format headers of soft and hard filtered transcripts
+    sed -i "s/^>/>soft_/" soft_filtered_transcripts.fasta
+    sed -i "s/^>/>hard_/" hard_filtered_transcripts.fasta
     
     v=\$( rnaspades.py -v 2>&1 | awk '{print \$4}' | tr -d "v" )
     cat <<-END_VERSIONS > versions.yml
