@@ -12,12 +12,19 @@ process TR2AACDS {
     path "versions.yml"                 , emit: versions
 
     script:
+    def args = task.ext.args ?: ''
     def mem_MB = (task.memory.toMega())
+
     """
     cat ${assemblies} > ${meta.id}.fa
     gzip ${meta.id}.fa
 
-    tr2aacds.pl -NCPU $task.cpus -MAXMEM ${mem_MB} -log -cdna ${meta.id}.fa.gz
+    tr2aacds.pl \\
+    -NCPU $task.cpus \\
+    -MAXMEM ${mem_MB} \\
+    -log \\
+    -cdna ${meta.id}.fa.gz \\
+    $args
 
     cp okayset/*.okay.mrna ${meta.id}.okay.fa
 
@@ -30,7 +37,7 @@ process TR2AACDS {
         exonerate: \$(exonerate --version | grep exonerate | cut -d' ' -f5)
         cd-hit: \$(cd-hit | grep "CD-HIT version" | cut -d' ' -f4)
         blast: \$(blastn -version | grep -i 'blastn: ' | cut -d' ' -f2)
-        EvidentialGene: 'accessed 26/05/2023'
+        EvidentialGene tr2aacds.pl: \$(tr2aacds.pl 2>&1 | grep 'EvidentialGene tr2aacds.pl VERSION' | cut -d' ' -f4)
     END_VERSIONS
     """ 
 }

@@ -117,6 +117,10 @@
                 "extra_trinity_args": {
                     "type": "string",
                     "description": "Extra arguments to pass to Trinity command in addition to defaults."
+                },
+                "extra_tr2aacds_args": {
+                    "type": "string",
+                    "description": "Extra arguments for tr2aacds.pl. For example, '-MINAA=20'."
                 }
             },
             "fa_icon": "fas fa-puzzle-piece"
