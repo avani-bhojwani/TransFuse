@@ -26,6 +26,13 @@ Define where the pipeline should find input data and save output data.
     - **Type**: string
     - **Description**: MultiQC report title. Printed as page header, used for filename if not otherwise specified.
 
+- **quant_only**:
+    - **Type**: boolean
+    - **Description**: Whether the pipeline should skip assembly steps, and only perform quantification.
+
+- **transcript_fasta**:
+    - **Type**: string
+    - **Description**: Path to fasta file (not compressed) containing a transcriptome assembly. Only needed if --quant_only is True.
 
 ## FastQC/FastP options
 
